@@ -142,8 +142,8 @@ onUnmounted(() => {
 <template>
   <main class="stage" :style="transform" @contextmenu.prevent>
     <div v-show="expanded" ref="bubble" class="thought">
-      <svg class="thought-outline" viewBox="0 0 320 244" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M314 110C314 48 250 6 160 6S6 48 6 110c0 53 38 90 92 103 2 12 13 20 26 20 12 0 23-5 28-13 91 1 162-43 162-110Z" />
+      <svg class="thought-outline" viewBox="0 0 300 230" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M48 32C58 10 89 6 110 19 132 5 169 7 187 24 215 12 246 25 254 46 280 48 298 71 291 95 304 118 293 146 275 155 275 182 248 202 223 198 205 220 173 218 156 207 132 226 100 217 90 202 61 211 37 193 33 173 9 165 1 143 12 121 1 97 9 71 31 64 27 47 33 38 48 32Z" />
       </svg>
       <div class="thought-content">
         <header class="thought-header">
@@ -195,11 +195,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.stage { position: absolute; right: 0; bottom: 0; width: 336px; height: 490px; transform-origin: bottom right; }
-.thought { position: absolute; left: 4px; bottom: 204px; width: 302px; height: 282px; z-index: 1; }
-.thought-outline { position: absolute; width: 302px; height: 236px; inset: 0 auto auto 0; overflow: visible; pointer-events: none; }
+.stage { position: absolute; right: 0; bottom: 0; width: 376px; height: 430px; transform-origin: bottom right; }
+.thought { position: absolute; left: 12px; top: 18px; width: 284px; height: 254px; z-index: 1; }
+.thought-outline { position: absolute; width: 284px; height: 224px; inset: 0 auto auto 0; overflow: visible; pointer-events: none; }
 .thought-outline path { fill: white; stroke: #383047; stroke-width: 5.5; stroke-linejoin: round; }
-.thought-content { position: absolute; top: 31px; right: 35px; bottom: 65px; left: 35px; display: flex; flex-direction: column; }
+.thought-content { position: absolute; top: 34px; right: 36px; bottom: 49px; left: 36px; display: flex; flex-direction: column; }
 .thought-header { position: relative; display: flex; align-items: center; flex-shrink: 0; gap: 3px; height: 28px; margin-bottom: 8px; }
 .thought-header h1 { position: absolute; left: 0; right: 0; margin: 0; color: #75618f; font-size: 16px; font-weight: 700; white-space: nowrap; text-align: center; pointer-events: none; }
 .actions { display: flex; align-items: center; margin-left: auto; gap: 1px; }
@@ -208,10 +208,10 @@ onUnmounted(() => {
 .icon-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .back { width: 17px; font-size: 25px; }
 .thought-scroll { min-height: 0; flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #ccc2db transparent; margin-bottom: 24px; padding: 0 2px; }
-.caption { position: absolute; bottom: 12px; left: 30px; right: 30px; margin: 0; color: #948a9d; font-size: 9px; line-height: 12px; text-align: center; pointer-events: none; }
+.caption { position: absolute; bottom: 12px; left: 20px; right: 20px; margin: 0; color: #948a9d; font-size: 9px; line-height: 12px; text-align: center; pointer-events: none; }
 .thought-dot { position: absolute; display: block; border: 4px solid #383047; border-radius: 50%; background: white; pointer-events: none; }
-.thought-dot.large { left: 94px; top: 240px; width: 28px; height: 20px; transform: rotate(-8deg); }
-.thought-dot.small { left: 125px; top: 271px; width: 15px; height: 11px; border-width: 3.5px; }
+.thought-dot.large { left: 112px; top: 220px; width: 23px; height: 17px; transform: rotate(-15deg); }
+.thought-dot.small { left: 141px; top: 242px; width: 13px; height: 10px; border-width: 3px; }
 .character-position { position: absolute; right: 0; bottom: 0; }
 .ui-error { color: #a36c28; font-size: 10px; line-height: 1.5; }
 </style>

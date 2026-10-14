@@ -19,8 +19,8 @@ use tauri::{
     Emitter, Manager, State, WebviewWindow,
 };
 
-const WIDTH: f64 = 336.0;
-const HEIGHT: f64 = 490.0;
+const WIDTH: f64 = 376.0;
+const HEIGHT: f64 = 430.0;
 
 #[derive(Default, Clone, Copy, Serialize)]
 pub struct HostStatus {

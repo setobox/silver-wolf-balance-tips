@@ -13,8 +13,8 @@
     "windows": [{
       "label": "main",
       "title": "Silverwolf",
-      "width": 336,
-      "height": 490,
+      "width": 376,
+      "height": 430,
       "decorations": false,
       "transparent": true,
       "shadow": false,

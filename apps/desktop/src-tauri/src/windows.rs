@@ -19,6 +19,79 @@ use windows_sys::Win32::{
     UI::{HiDpi::*, Shell::*, WindowsAndMessaging::*},
 };
 
+fn frameless_style(style: u32) -> u32 {
+    (style & !(WS_CAPTION | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX))
+        | WS_POPUP
+}
+
+fn frameless_ex_style(style: u32) -> u32 {
+    style & !(WS_EX_WINDOWEDGE | WS_EX_CLIENTEDGE | WS_EX_DLGMODALFRAME | WS_EX_STATICEDGE)
+}
+
+unsafe extern "system" fn frameless_events(
+    hwnd: HWND,
+    message: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    id: usize,
+    _data: usize,
+) -> LRESULT {
+    match message {
+        WM_STYLECHANGING if lparam != 0 => {
+            // Tao retains caption styles even with decorations=false, and can
+            // restore them on focus/visibility changes. Filter every later write.
+            let styles = &mut *(lparam as *mut STYLESTRUCT);
+            if wparam as i32 == GWL_STYLE {
+                styles.styleNew = frameless_style(styles.styleNew);
+            } else if wparam as i32 == GWL_EXSTYLE {
+                styles.styleNew = frameless_ex_style(styles.styleNew);
+            }
+        }
+        WM_NCCALCSIZE | WM_NCPAINT => return 0,
+        // Let Tao update focus, but don't let DefWindowProc repaint a caption.
+        WM_NCACTIVATE => return DefSubclassProc(hwnd, message, wparam, -1),
+        WM_NCDESTROY => {
+            RemoveWindowSubclass(hwnd, Some(frameless_events), id);
+        }
+        _ => {}
+    }
+    DefSubclassProc(hwnd, message, wparam, lparam)
+}
+
+unsafe fn remove_native_frame(hwnd: HWND) -> std::io::Result<()> {
+    if SetWindowSubclass(hwnd, Some(frameless_events), 2, 0) == 0 {
+        return Err(std::io::Error::last_os_error());
+    }
+    for (index, style) in [
+        (
+            GWL_STYLE,
+            frameless_style(GetWindowLongPtrW(hwnd, GWL_STYLE) as u32),
+        ),
+        (
+            GWL_EXSTYLE,
+            frameless_ex_style(GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32),
+        ),
+    ] {
+        SetLastError(0);
+        if SetWindowLongPtrW(hwnd, index, style as isize) == 0 && GetLastError() != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+    }
+    if SetWindowPos(
+        hwnd,
+        null_mut(),
+        0,
+        0,
+        0,
+        0,
+        SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+    ) == 0
+    {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(())
+}
+
 // The OS move loop can start after the initiating IPC has returned. Mouse-button
 // polling alone can therefore save the old position before the actual move.
 unsafe extern "system" fn drag_events(
@@ -212,6 +285,7 @@ fn desktop_bounds(hwnd: HWND, position: Option<(i32, i32)>) -> Bounds {
 pub fn start(window: &WebviewWindow, state: Arc<Shared>) -> tauri::Result<()> {
     // Transfer a numeric handle, never a borrowed window pointer, to the worker.
     let handle = window.hwnd()?.0 as usize;
+    unsafe { remove_native_frame(handle as HWND)? };
     let events = Arc::into_raw(state.clone());
     if unsafe { SetWindowSubclass(handle as HWND, Some(drag_events), 1, events as usize) } == 0 {
         unsafe { drop(Arc::from_raw(events)) };
@@ -337,7 +411,59 @@ pub fn start(window: &WebviewWindow, state: Arc<Shared>) -> tauri::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_codex_image;
+    use super::*;
+
+    #[test]
+    fn native_frame_stays_removed_after_style_and_activation_changes() {
+        unsafe {
+            let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+            let hwnd = CreateWindowExW(
+                WS_EX_WINDOWEDGE,
+                class.as_ptr(),
+                null_mut(),
+                WS_OVERLAPPEDWINDOW,
+                0,
+                0,
+                336,
+                490,
+                null_mut(),
+                null_mut(),
+                null_mut(),
+                null_mut(),
+            );
+            assert!(!hwnd.is_null());
+            remove_native_frame(hwnd).unwrap();
+            // Simulate the window library restoring its cached styles.
+            SetWindowLongPtrW(hwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW as isize);
+            SetWindowLongPtrW(
+                hwnd,
+                GWL_EXSTYLE,
+                (WS_EX_WINDOWEDGE | WS_EX_TOOLWINDOW) as isize,
+            );
+            SendMessageW(hwnd, WM_NCACTIVATE, 1, 0);
+            SendMessageW(hwnd, WM_NCACTIVATE, 0, 0);
+            SetWindowPos(
+                hwnd,
+                null_mut(),
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+            let style = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
+            assert_eq!(style & WS_OVERLAPPEDWINDOW, 0);
+            assert_ne!(style & WS_POPUP, 0);
+            assert_eq!(
+                GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32,
+                WS_EX_TOOLWINDOW
+            );
+            let mut client: RECT = std::mem::zeroed();
+            assert_ne!(GetClientRect(hwnd, &mut client), 0);
+            assert_eq!((client.right, client.bottom), (336, 490));
+            assert_ne!(DestroyWindow(hwnd), 0);
+        }
+    }
 
     #[test]
     fn recognizes_codex_and_its_renamed_store_app_only() {

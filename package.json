@@ -1,0 +1,24 @@
+{
+  "name": "silverwolf-balance-tips",
+  "type": "module",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "engines": { "node": ">=24.14.0" },
+  "scripts": {
+    "doctor": "node scripts/check-environment.mjs",
+    "dev": "pnpm --filter @silverwolf/desktop dev",
+    "dev:web": "pnpm --filter @silverwolf/desktop dev:web",
+    "build": "pnpm --filter @silverwolf/desktop build",
+    "build:web": "pnpm --filter @silverwolf/desktop build:web",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "test": "node --experimental-strip-types --test packages/core/src/*.test.ts",
+    "test:rust": "cargo test --workspace",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:rust"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^5.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "~5.9.3"
+  }
+}

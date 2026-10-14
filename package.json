@@ -12,7 +12,7 @@
     "build:web": "pnpm --filter @silverwolf/desktop build:web",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test packages/core/src/*.test.ts",
+    "test": "node --experimental-strip-types --test packages/core/src/*.test.ts apps/desktop/src/*.test.ts",
     "test:rust": "cargo test --workspace",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:rust"
   },

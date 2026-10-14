@@ -6,6 +6,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { computed, nextTick, onMounted, onUnmounted, shallowRef, useTemplateRef } from 'vue'
 import { defaultPreferences, desktop, native } from '../bridge'
 import { useUsage } from '../composables/useUsage'
+import { useWidgetMotion } from '../composables/useWidgetMotion'
+import { motionRegion, stageSize } from '../widgetGeometry'
 import QuotaBubble from './QuotaBubble.vue'
 import WidgetSettings from './WidgetSettings.vue'
 import WolfCharacter from './WolfCharacter.vue'
@@ -18,6 +20,9 @@ const uiError = shallowRef('')
 const saving = shallowRef(false)
 const bubble = useTemplateRef<HTMLElement>('bubble')
 const character = useTemplateRef<HTMLElement>('character')
+const stage = useTemplateRef<HTMLElement>('stage')
+const motion = useTemplateRef<HTMLElement>('motion')
+const { press, rebound } = useWidgetMotion(motion)
 const transform = computed(() => ({ transform: `scale(${preferences.value.scale})` }))
 let observer: ResizeObserver | undefined
 let unlisten: UnlistenFn | undefined
@@ -29,11 +34,13 @@ let frame = 0
 
 async function updateRegions(): Promise<void> {
   await nextTick()
+  if (!stage.value)
+    return
+  const origin = stage.value.getBoundingClientRect()
   const elements = [character.value, expanded.value ? bubble.value : null]
   try {
     await desktop.regions(elements.filter((element): element is HTMLElement => !!element).map((element) => {
-      const rect = element.getBoundingClientRect()
-      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height + 8 * preferences.value.scale }
+      return motionRegion({ x: element.offsetLeft, y: element.offsetTop, width: element.offsetWidth, height: element.offsetHeight }, preferences.value.scale, origin)
     }))
   }
   catch { uiError.value = '窗口交互区域更新失败，请从托盘退出后重开。' }
@@ -70,6 +77,12 @@ async function save(patch: Partial<Preferences>): Promise<void> {
   finally { saving.value = false }
 }
 
+function characterClick(event: MouseEvent): void {
+  if (!suppressClick && event.detail === 0)
+    rebound()
+  toggle()
+}
+
 function scaleBy(delta: number): void {
   void save({ scale: Math.min(1.6, Math.max(0.6, Math.round((preferences.value.scale + delta) * 10) / 10)) })
 }
@@ -78,15 +91,17 @@ function pointerDown(event: PointerEvent): void {
   if (event.button !== 0)
     return
   suppressClick = false
+  press(event)
   pointerCleanup?.()
   const start = { x: event.screenX, y: event.screenY }
   function clear(): void {
     window.removeEventListener('pointermove', move)
     window.removeEventListener('pointerup', clear)
     window.removeEventListener('pointercancel', clear)
+    window.removeEventListener('blur', clear)
   }
   async function move(next: PointerEvent): Promise<void> {
-    if (Math.hypot(next.screenX - start.x, next.screenY - start.y) < 5)
+    if (next.pointerId !== event.pointerId || Math.hypot(next.screenX - start.x, next.screenY - start.y) < 5)
       return
     clear()
     suppressClick = true
@@ -100,6 +115,7 @@ function pointerDown(event: PointerEvent): void {
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', clear, { once: true })
   window.addEventListener('pointercancel', clear, { once: true })
+  window.addEventListener('blur', clear, { once: true })
   pointerCleanup = clear
 }
 
@@ -140,62 +156,65 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="stage" :style="transform" @contextmenu.prevent>
-    <div v-show="expanded" ref="bubble" class="thought">
-      <svg class="thought-outline" viewBox="0 0 300 230" preserveAspectRatio="none" aria-hidden="true">
-        <path d="M48 32C58 10 89 6 110 19 132 5 169 7 187 24 215 12 246 25 254 46 280 48 298 71 291 95 304 118 293 146 275 155 275 182 248 202 223 198 205 220 173 218 156 207 132 226 100 217 90 202 61 211 37 193 33 173 9 165 1 143 12 121 1 97 9 71 31 64 27 47 33 38 48 32Z" />
-      </svg>
-      <div class="thought-content">
-        <header class="thought-header">
-          <button v-if="settingsOpen" class="icon-button back" aria-label="返回额度" @click="settingsOpen = false">
-            ‹
-          </button>
-          <h1>{{ settingsOpen ? '挂件设置' : '剩余额度' }}</h1>
-          <div class="actions">
-            <button v-if="!settingsOpen" class="icon-button refresh" :disabled="loading" aria-label="刷新额度" title="刷新额度" @click="refresh">
-              ↻
+  <main ref="stage" class="stage" :style="{ ...transform, width: `${stageSize.width}px`, height: `${stageSize.height}px` }" @contextmenu.prevent>
+    <div ref="motion" class="widget-motion">
+      <div v-show="expanded" ref="bubble" class="thought">
+        <svg class="thought-outline" viewBox="0 0 300 230" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M48 32C58 10 89 6 110 19 132 5 169 7 187 24 215 12 246 25 254 46 280 48 298 71 291 95 304 118 293 146 275 155 275 182 248 202 223 198 205 220 173 218 156 207 132 226 100 217 90 202 61 211 37 193 33 173 9 165 1 143 12 121 1 97 9 71 31 64 27 47 33 38 48 32Z" />
+        </svg>
+        <div class="thought-content">
+          <header class="thought-header">
+            <button v-if="settingsOpen" class="icon-button back" aria-label="返回额度" @click="settingsOpen = false">
+              ‹
             </button>
-            <button v-if="!settingsOpen" class="icon-button" aria-label="挂件设置" title="挂件设置" @click="settingsOpen = true">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6m8 4v6" /></svg>
-            </button>
-            <button class="icon-button close" aria-label="收起额度" title="收起额度" @click="toggle">
-              ×
-            </button>
+            <h1>{{ settingsOpen ? '挂件设置' : '剩余额度' }}</h1>
+            <div class="actions">
+              <button v-if="!settingsOpen" class="icon-button refresh" :disabled="loading" aria-label="刷新额度" title="刷新额度" @click="refresh">
+                ↻
+              </button>
+              <button v-if="!settingsOpen" class="icon-button" aria-label="挂件设置" title="挂件设置" @click="settingsOpen = true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M8 4v6m8 4v6" /></svg>
+              </button>
+              <button class="icon-button close" aria-label="收起额度" title="收起额度" @click="toggle">
+                ×
+              </button>
+            </div>
+          </header>
+          <div class="thought-scroll" :class="{ 'is-settings': settingsOpen }">
+            <WidgetSettings v-if="settingsOpen" :preferences="preferences" :saving="saving" @save="save" @scale="scaleBy" />
+            <QuotaBubble v-else :snapshot="snapshot" :error="error" :loading="loading" :now="now" />
+            <p v-if="uiError" role="alert" class="ui-error">
+              {{ uiError }}
+            </p>
           </div>
-        </header>
-        <div class="thought-scroll" :class="{ 'is-settings': settingsOpen }">
-          <WidgetSettings v-if="settingsOpen" :preferences="preferences" :saving="saving" @save="save" @scale="scaleBy" />
-          <QuotaBubble v-else :snapshot="snapshot" :error="error" :loading="loading" :now="now" />
-          <p v-if="uiError" role="alert" class="ui-error">
-            {{ uiError }}
+          <p class="caption">
+            <template v-if="!native">
+              浏览器预览 · 不读取账户
+            </template>
+            <template v-else-if="settingsOpen">
+              拖动人物移动 · 滚轮缩放
+            </template>
+            <template v-else-if="snapshot">
+              {{ new Date(snapshot.observedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }} 更新
+            </template>
+            <template v-else>
+              尚未更新
+            </template>
           </p>
         </div>
-        <p class="caption">
-          <template v-if="!native">
-            浏览器预览 · 不读取账户
-          </template>
-          <template v-else-if="settingsOpen">
-            拖动人物移动 · 滚轮缩放
-          </template>
-          <template v-else-if="snapshot">
-            {{ new Date(snapshot.observedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }} 更新
-          </template>
-          <template v-else>
-            尚未更新
-          </template>
-        </p>
+        <span class="thought-dot large" aria-hidden="true" />
+        <span class="thought-dot small" aria-hidden="true" />
       </div>
-      <span class="thought-dot large" aria-hidden="true" />
-      <span class="thought-dot small" aria-hidden="true" />
-    </div>
-    <div ref="character" class="character-position">
-      <WolfCharacter :expanded="expanded" @toggle="toggle" @pointerdown="pointerDown" @wheel="scaleBy($event.deltaY < 0 ? 0.1 : -0.1)" />
+      <div ref="character" class="character-position">
+        <WolfCharacter :expanded="expanded" @toggle="characterClick" @pointerdown="pointerDown" @wheel="scaleBy($event.deltaY < 0 ? 0.1 : -0.1)" />
+      </div>
     </div>
   </main>
 </template>
 
 <style scoped>
-.stage { position: absolute; right: 0; bottom: 0; width: 376px; height: 430px; transform-origin: bottom right; }
+.stage { position: absolute; right: 0; bottom: 0; transform-origin: bottom right; }
+.widget-motion { position: absolute; inset: 0; transform-origin: center bottom; }
 .thought { position: absolute; left: 12px; top: 18px; width: 284px; height: 254px; z-index: 1; }
 .thought-outline { position: absolute; width: 284px; height: 224px; inset: 0 auto auto 0; overflow: visible; pointer-events: none; }
 .thought-outline path { fill: white; stroke: #383047; stroke-width: 5.5; stroke-linejoin: round; }

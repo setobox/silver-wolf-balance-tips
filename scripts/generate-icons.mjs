@@ -1,69 +1,55 @@
-// Deterministic original wolf icon, built using only Node's standard library.
+// Resize the imagegen ribbon artwork with the installed Tauri CLI, then pack a Windows ICO.
 import { Buffer } from 'node:buffer'
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { deflateSync } from 'node:zlib'
+import { spawnSync } from 'node:child_process'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 
-const size = 64
-const pixels = Buffer.alloc(size * size * 4)
-function polygon(points, color) {
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      let inside = false
-      for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-        const [xi, yi] = points[i]
-        const [xj, yj] = points[j]
-        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi)
-          inside = !inside
-      }
-      if (inside)
-        pixels.set(color, (y * size + x) * 4)
-    }
-  }
-}
-polygon([[7, 6], [25, 17], [39, 17], [57, 6], [55, 40], [45, 54], [32, 60], [19, 54], [9, 40]], [183, 195, 222, 255])
-polygon([[13, 14], [22, 22], [13, 29]], [151, 121, 177, 255])
-polygon([[51, 14], [42, 22], [51, 29]], [151, 121, 177, 255])
-polygon([[12, 38], [25, 39], [32, 47], [39, 39], [52, 38], [44, 51], [32, 57], [20, 51]], [241, 244, 251, 255])
-polygon([[20, 31], [25, 32], [25, 38], [20, 37]], [95, 79, 151, 255])
-polygon([[39, 32], [44, 31], [44, 37], [39, 38]], [95, 79, 151, 255])
-polygon([[28, 45], [36, 45], [32, 49]], [55, 61, 83, 255])
+const root = fileURLToPath(new URL('../', import.meta.url))
+const source = join(root, 'docs/assets/silverwolf-ribbon.png')
+const cli = join(root, 'apps/desktop/node_modules/@tauri-apps/cli/tauri.js')
+const directory = join(root, 'apps/desktop/src-tauri/icons')
+const sizes = [16, 20, 24, 32, 40, 48, 64, 128, 256]
+const temporaryRoot = resolve(tmpdir())
+const temporary = mkdtempSync(join(temporaryRoot, 'silverwolf-icons-'))
 
-function crc32(data) {
-  let crc = 0xFFFFFFFF
-  for (const byte of data) {
-    crc ^= byte
-    for (let i = 0; i < 8; i++)
-      crc = (crc >>> 1) ^ ((crc & 1) ? 0xEDB88320 : 0)
-  }
-  return (crc ^ 0xFFFFFFFF) >>> 0
+try {
+  const result = spawnSync(process.execPath, [
+    cli,
+    'icon',
+    source,
+    '--output',
+    temporary,
+    ...sizes.flatMap(size => ['--png', String(size)]),
+  ], { cwd: root, stdio: 'inherit' })
+  if (result.error)
+    throw result.error
+  if (result.status !== 0)
+    throw new Error(`Tauri icon conversion failed (${result.status})`)
+
+  const images = sizes.map(size => readFileSync(join(temporary, `${size}x${size}.png`)))
+  const header = Buffer.alloc(6 + sizes.length * 16)
+  header.writeUInt16LE(1, 2)
+  header.writeUInt16LE(sizes.length, 4)
+  let offset = header.length
+  sizes.forEach((size, index) => {
+    const entry = 6 + index * 16
+    header[entry] = size === 256 ? 0 : size
+    header[entry + 1] = size === 256 ? 0 : size
+    header.writeUInt16LE(1, entry + 4)
+    header.writeUInt16LE(32, entry + 6)
+    header.writeUInt32LE(images[index].length, entry + 8)
+    header.writeUInt32LE(offset, entry + 12)
+    offset += images[index].length
+  })
+
+  mkdirSync(directory, { recursive: true })
+  copyFileSync(join(temporary, '256x256.png'), join(directory, 'icon.png'))
+  writeFileSync(join(directory, 'icon.ico'), Buffer.concat([header, ...images]))
 }
-function chunk(name, data) {
-  const type = Buffer.from(name)
-  const length = Buffer.alloc(4)
-  length.writeUInt32BE(data.length)
-  const checksum = Buffer.alloc(4)
-  checksum.writeUInt32BE(crc32(Buffer.concat([type, data])))
-  return Buffer.concat([length, type, data, checksum])
+finally {
+  if (dirname(resolve(temporary)) === temporaryRoot)
+    rmSync(temporary, { recursive: true, force: true })
 }
-const header = Buffer.alloc(13)
-header.writeUInt32BE(size, 0)
-header.writeUInt32BE(size, 4)
-header[8] = 8
-header[9] = 6
-const rows = Buffer.alloc(size * (size * 4 + 1))
-for (let y = 0; y < size; y++)
-  pixels.copy(rows, y * (size * 4 + 1) + 1, y * size * 4, (y + 1) * size * 4)
-const png = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', header), chunk('IDAT', deflateSync(rows)), chunk('IEND', Buffer.alloc(0))])
-const icoHeader = Buffer.alloc(22)
-icoHeader.writeUInt16LE(1, 2)
-icoHeader.writeUInt16LE(1, 4)
-icoHeader[6] = size
-icoHeader[7] = size
-icoHeader.writeUInt16LE(1, 10)
-icoHeader.writeUInt16LE(32, 12)
-icoHeader.writeUInt32LE(png.length, 14)
-icoHeader.writeUInt32LE(22, 18)
-const directory = new URL('../apps/desktop/src-tauri/icons/', import.meta.url)
-mkdirSync(directory, { recursive: true })
-writeFileSync(new URL('icon.png', directory), png)
-writeFileSync(new URL('icon.ico', directory), Buffer.concat([icoHeader, png]))

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/silverwolf-ribbon.png" alt="银狼紫蓝缎带项目图标" width="160" height="160" />
+</p>
+
 # Silverwolf Balance Tips
 
 Windows 上的轻量 Codex 额度挂件。Rust 查询额度、处理窗口跟随，Tauri + Vue 显示角色和气泡。pnpm monorepo 为后续 DSH / DeepSeek 插件预留包边界。
@@ -87,10 +91,12 @@ apps/desktop/                 Tauri 桌面应用 + Vue UI
   src-tauri/src/settings.rs    配置验证与原子保存
 crates/codex-usage/            独立于 Tauri 的 Rust Codex 查询实现
 packages/core/                无 UI / 宿主依赖的数据契约与格式化函数
-scripts/generate-icons.mjs     使用 Node 标准库生成原创托盘图标
+scripts/generate-icons.mjs     从缎带原图导出应用与托盘图标
 ```
 
 `pnpm-workspace.yaml` 包含 `apps/*` 与 `packages/*`，根 Cargo workspace 管理 Rust crate。当前不引入 Turborepo、不做 MCP 注册，也不创建空的 DeepSeek 实现。
+
+项目图标参考银狼头上的紫蓝缎带，由内置 imagegen 生成；README、应用和托盘使用同一图案。原图为 `docs/assets/silverwolf-ribbon.png`。依赖准备完成后，运行 `node scripts/generate-icons.mjs` 可离线导出透明 PNG 与包含 16–256 像素九种尺寸的 Windows ICO；重新编译并重启应用后托盘生效。完整提示词见 [素材说明](docs/character-assets.md)。
 
 ## 后续加入 DeepSeek 插件
 
@@ -128,4 +134,4 @@ Rust 测试覆盖握手顺序、忽略通知、API Key 登录提前退出、敏�
 
 - [Codex App Server](https://learn.chatgpt.com/docs/app-server)
 - [Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/)
-- GPT-Niang、DeepSeek-Balance-Whale-Widget、Codex-Whale-Public 用于架构调研；本项目未复制其源码。当前角色来自用户提供的参考图，经透明背景处理；托盘小狼图标为项目原创。素材来源和处理提示词见 [docs/character-assets.md](docs/character-assets.md)。
+- GPT-Niang、DeepSeek-Balance-Whale-Widget、Codex-Whale-Public 用于架构调研；本项目未复制其源码。当前角色来自用户提供的参考图，经透明背景处理；项目与托盘图标基于角色头上的缎带生成。素材来源和处理提示词见 [docs/character-assets.md](docs/character-assets.md)。

@@ -23,9 +23,11 @@ const WIDTH: f64 = 376.0;
 const HEIGHT: f64 = 430.0;
 
 #[derive(Default, Clone, Copy, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HostStatus {
     visible: bool,
     attached: bool,
+    toolbar_left: bool,
 }
 
 pub struct Model {
@@ -45,6 +47,15 @@ pub struct Shared {
     model: Mutex<Model>,
     query: tokio::sync::Mutex<()>,
     file: PathBuf,
+    #[cfg(windows)]
+    tracker_thread: std::sync::atomic::AtomicU32,
+}
+
+impl Shared {
+    fn wake_tracker(&self) {
+        #[cfg(windows)]
+        windows::wake(self);
+    }
 }
 
 #[derive(Deserialize)]
@@ -85,6 +96,7 @@ fn set_preferences(
         ))
         .map_err(|_| "无法调整窗口大小")?;
     let _ = window.emit("preferences-changed", &preferences);
+    state.wake_tracker();
     Ok(preferences)
 }
 
@@ -109,6 +121,7 @@ async fn read_usage(state: State<'_, Arc<Shared>>) -> Result<Snapshot, UsageErro
 #[tauri::command]
 fn ready(state: State<'_, Arc<Shared>>) {
     state.model.lock().unwrap().ready = true;
+    state.wake_tracker();
 }
 
 #[tauri::command]
@@ -116,6 +129,7 @@ fn begin_drag(window: WebviewWindow, state: State<'_, Arc<Shared>>) -> Result<()
     state.model.lock().unwrap().dragging = Some(DragState::Pending(Instant::now()));
     if window.start_dragging().is_err() {
         state.model.lock().unwrap().dragging = None;
+        state.wake_tracker();
         return Err("无法开始拖动窗口".into());
     }
     Ok(())
@@ -187,6 +201,7 @@ fn tray(app: &tauri::App) -> tauri::Result<()> {
                 ));
                 let _ = window.emit("preferences-changed", preferences);
             }
+            state.wake_tracker();
         })
         .build(app)?;
     Ok(())
@@ -203,6 +218,7 @@ fn main() {
                 model.settings.preferences.clone()
             };
             let _ = app.emit("preferences-changed", preferences);
+            state.wake_tracker();
         }))
         .setup(|app| {
             let file = app.path().app_config_dir()?.join("settings.json");
@@ -223,6 +239,8 @@ fn main() {
                 }),
                 query: tokio::sync::Mutex::new(()),
                 file,
+                #[cfg(windows)]
+                tracker_thread: std::sync::atomic::AtomicU32::new(0),
             });
             app.manage(state.clone());
             tray(app)?;

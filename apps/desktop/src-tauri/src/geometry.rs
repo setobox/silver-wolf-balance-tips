@@ -30,9 +30,29 @@ pub fn clamp(bounds: Bounds, width: i32, height: i32, x: i32, y: i32) -> (i32, i
     )
 }
 
+pub fn toolbar_left(right: i32, boundary: i32, scale: f64, was_left: bool) -> bool {
+    // A small dead band prevents flickering while dragging along the threshold.
+    let margin = if was_left { 36.0 } else { 24.0 };
+    f64::from(boundary - right) < margin * scale
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn toolbar_switches_at_scaled_edges_without_jitter() {
+        for scale in [0.6, 1.0, 1.5, 2.4] {
+            let boundary = -1920;
+            let at_gap = |gap: f64| boundary - (gap * scale).round() as i32;
+            assert!(!toolbar_left(at_gap(48.0), boundary, scale, false));
+            assert!(toolbar_left(at_gap(16.0), boundary, scale, false));
+            assert!(toolbar_left(at_gap(30.0), boundary, scale, true));
+            assert!(!toolbar_left(at_gap(30.0), boundary, scale, false));
+            assert!(!toolbar_left(at_gap(48.0), boundary, scale, true));
+            assert!(toolbar_left(boundary + 10, boundary, scale, false));
+        }
+    }
+
     #[test]
     fn follows_scaled_and_negative_coordinate_monitors() {
         let host = Bounds {

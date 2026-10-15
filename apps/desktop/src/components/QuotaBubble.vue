@@ -7,10 +7,7 @@ defineProps<{ snapshot: UsageSnapshot | null, error: UsageError | null, loading:
 
 <template>
   <section class="quota" aria-label="Codex 剩余额度" aria-live="polite" :aria-busy="loading">
-    <p v-if="loading" class="message">
-      正在读取额度<span class="pulse">…</span>
-    </p>
-    <div v-else-if="error" class="message">
+    <div v-if="error" class="message">
       <p class="error-title">
         暂时无法读取
       </p>
@@ -36,7 +33,7 @@ defineProps<{ snapshot: UsageSnapshot | null, error: UsageError | null, loading:
       </div>
     </template>
     <p v-else class="message">
-      点击刷新，查看剩余额度。
+      {{ loading ? '尚无额度数据。' : '点击刷新，查看剩余额度。' }}
     </p>
   </section>
 </template>
@@ -59,6 +56,4 @@ defineProps<{ snapshot: UsageSnapshot | null, error: UsageError | null, loading:
 .message { margin: 18px 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
 .message p { margin: 0 0 5px; }
 .error-title { color: #a36c28; font-weight: 600; }
-.pulse { animation: pulse 1s alternate infinite; }
-@keyframes pulse { to { opacity: .3; } }
 </style>

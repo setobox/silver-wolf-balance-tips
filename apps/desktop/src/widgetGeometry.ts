@@ -2,6 +2,17 @@ export const stageSize = { width: 376, height: 430 }
 export const squash = { x: 1.06, y: 0.84 }
 export const bounce = [squash, { x: 0.97, y: 1.04 }, { x: 1.025, y: 0.97 }, { x: 0.995, y: 1.01 }, { x: 1, y: 1 }]
 
+// The settings panel is outside the motion container; include its shadow and focus ring.
+export function staticRegion(rect: { x: number, y: number, width: number, height: number }, scale: number, origin: { x: number, y: number }) {
+  const padding = 12
+  return {
+    x: origin.x + (rect.x - padding) * scale,
+    y: origin.y + (rect.y - padding) * scale,
+    width: (rect.width + padding * 2) * scale,
+    height: (rect.height + padding * 2) * scale,
+  }
+}
+
 // Reserve all animation bounds before it starts; animated DOM bounds would
 // otherwise clip the cloud on subsequent frames in the native Windows region.
 export function motionRegion(rect: { x: number, y: number, width: number, height: number }, scale: number, origin: { x: number, y: number }) {

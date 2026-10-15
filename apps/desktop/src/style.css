@@ -7,6 +7,17 @@
   --accent: #8774ac;
   --surface: #fff;
   --line: #ded8e8;
+  --control-bg: #f4f1f8;
+  --control-hover: #e8e2f2;
+  --control-active: #ede5f8;
+  --error: #96621e;
+  --font-body: 12px;
+  --font-help: 11px;
+  --font-title: 14px;
+  --control-height: 28px;
+  --icon-size: 26px;
+  --radius-control: 6px;
+  --radius-panel: 12px;
   color-scheme: light;
   background: transparent;
 }
@@ -18,6 +29,20 @@ button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .4; }
 button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 button { color: inherit; }
+.ui-button, .ui-input { min-width: 0; height: var(--control-height); padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-control); font-size: var(--font-body); color: var(--ink); }
+.ui-button { background: var(--control-bg); white-space: nowrap; }
+.ui-button:hover:not(:disabled) { background: var(--control-hover); }
+.ui-button[aria-pressed="true"] { background: var(--control-active); color: var(--ink); border-color: var(--accent); }
+.ui-input { background: var(--surface); user-select: text; }
+.ui-input[aria-invalid="true"] { border-color: var(--error); }
+.ui-icon-button { display: grid; place-items: center; width: var(--icon-size); height: var(--icon-size); padding: 0; border: 0; border-radius: var(--radius-control); color: var(--muted); background: transparent; font-size: 20px; }
+.ui-icon-button:hover:not(:disabled), .ui-icon-button[aria-pressed="true"] { background: var(--control-hover); color: var(--ink); }
+.ui-form-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--control-height); }
+.ui-label { font-size: var(--font-body); }
+.ui-number { font-family: Consolas, monospace; font-variant-numeric: tabular-nums; }
+.ui-help, .ui-error { margin: 8px 0 0; font-size: var(--font-help); line-height: 1.5; }
+.ui-help { color: var(--muted); }
+.ui-error { color: var(--error); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }

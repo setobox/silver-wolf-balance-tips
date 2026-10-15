@@ -136,4 +136,11 @@ Rust 测试覆盖握手顺序、忽略通知、API Key 登录提前退出、敏�
 
 - [Codex App Server](https://learn.chatgpt.com/docs/app-server)
 - [Tauri Windows prerequisites](https://v2.tauri.app/start/prerequisites/)
-- GPT-Niang、DeepSeek-Balance-Whale-Widget、Codex-Whale-Public 用于架构调研；本项目未复制其源码。当前角色来自用户提供的参考图，经透明背景处理；项目与托盘图标基于角色头上的缎带生成。素材来源和处理提示词见 [docs/character-assets.md](docs/character-assets.md)。
+
+## 参考项目
+
+- [GPT-Niang](https://github.com/T7moris/GPT-Niang)
+- [DeepSeek-Balance-Whale-Widget](https://github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget)
+- [Codex-Whale-Public](https://github.com/Yang-huai406/Codex-Whale-Public)
+
+以上项目用于架构与交互设计参考，本项目未复制其源码。当前角色来自用户提供的参考图，经透明背景处理；项目与托盘图标基于角色头上的缎带生成。素材来源和处理提示词见 [docs/character-assets.md](docs/character-assets.md)。

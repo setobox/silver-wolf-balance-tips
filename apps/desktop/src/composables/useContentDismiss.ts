@@ -2,13 +2,14 @@ import type { Ref } from 'vue'
 import { onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { createDismissTimer } from '../quotaDismiss'
 
-export function useQuotaDismiss(options: {
+export function useContentDismiss(options: {
   expanded: Ref<boolean>
   seconds: () => number | null
   loading: Ref<boolean>
   settingsOpen: Ref<boolean>
   bubble: Ref<HTMLElement | null>
   actions: Ref<HTMLElement | null>
+  paused: () => boolean
   dismiss: () => void
 }) {
   const hovered = shallowRef(false)
@@ -47,7 +48,7 @@ export function useQuotaDismiss(options: {
   const state = () => ({
     expanded: options.expanded.value,
     seconds: options.seconds(),
-    loading: options.loading.value,
+    loading: options.loading.value || options.paused(),
     settingsOpen: options.settingsOpen.value,
     hovered: hovered.value,
     keyboardFocused: keyboardFocused.value,

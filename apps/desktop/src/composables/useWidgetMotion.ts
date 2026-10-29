@@ -1,8 +1,9 @@
+import type { ThemeLayout } from '@silverwolf/core'
 import type { Ref } from 'vue'
 import { onUnmounted } from 'vue'
-import { bounce, squash } from '../widgetGeometry'
+import { motionFrames, stageSize } from '../widgetGeometry'
 
-export function useWidgetMotion(target: Readonly<Ref<HTMLElement | null>>) {
+export function useWidgetMotion(target: Readonly<Ref<HTMLElement | null>>, layout: () => ThemeLayout = () => stageSize) {
   let animation: Animation | undefined
   let clearPress: (() => void) | undefined
 
@@ -15,7 +16,7 @@ export function useWidgetMotion(target: Readonly<Ref<HTMLElement | null>>) {
 
   function rebound(): void {
     const offsets = [0, 0.36, 0.62, 0.82, 1]
-    animate(bounce.map((s, i) => ({ transform: `scale(${s.x}, ${s.y})`, offset: offsets[i] })), 520)
+    animate(motionFrames(layout()).map((s, i) => ({ transform: `scale(${s.x}, ${s.y})`, offset: offsets[i] })), 520)
   }
 
   function press(event: PointerEvent): void {
@@ -26,6 +27,7 @@ export function useWidgetMotion(target: Readonly<Ref<HTMLElement | null>>) {
     // The shared transform moves the button too. Keep release/click targeted
     // at the character even when it squashes away from the pointer.
     button.setPointerCapture(event.pointerId)
+    const squash = motionFrames(layout())[0]!
     animate([{ transform: 'scale(1)' }, { transform: `scale(${squash.x}, ${squash.y})` }], 110, 'forwards')
     function clear(): void {
       window.removeEventListener('pointermove', move)

@@ -19,7 +19,10 @@ tokio = { version = "1", features = [
   "time",
   "sync",
   "rt",
-  "macros"
+  "macros",
+  "net",
+  "rt-multi-thread",
+  "fs"
 ] }
 
 [profile.release]

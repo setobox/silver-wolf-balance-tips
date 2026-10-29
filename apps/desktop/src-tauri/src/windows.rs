@@ -654,6 +654,7 @@ pub fn start(window: &WebviewWindow, state: Arc<Shared>) -> tauri::Result<()> {
                 visible,
                 attached: follow && attached,
                 toolbar_left,
+                settings_open: false,
             };
             drop(model);
             if side_changed {

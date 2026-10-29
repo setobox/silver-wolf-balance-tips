@@ -55,7 +55,7 @@ onUnmounted(() => {
         挂件设置
       </h2>
       <button ref="close" class="ui-icon-button" aria-label="关闭设置" title="关闭设置" @click="$emit('close')">
-        ×
+        <span class="i-lucide-x ui-button-icon" aria-hidden="true" />
       </button>
     </header>
     <div class="popover-content">
@@ -65,7 +65,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.settings-popover { width: 304px; max-height: 360px; padding: 12px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); box-shadow: 0 3px 12px #38304724; }
+.settings-popover { width: 304px; max-height: 360px; padding: 12px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--surface); color: var(--ink); box-shadow: 0 3px 12px #38304724; transform-origin: bottom left; animation: settings-open .24s cubic-bezier(.2, .8, .2, 1); }
+@keyframes settings-open {
+  from { opacity: 0; transform: translate(-16px, 16px) scale(.96); }
+  to { opacity: 1; transform: translate(0, 0) scale(1); }
+}
 .popover-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; margin-bottom: 12px; }
 .popover-header h2 { margin: 0; font-size: var(--font-title); font-weight: 650; }
 .popover-content { min-height: 0; overflow: auto; scrollbar-width: thin; padding: 3px; margin: -3px; }

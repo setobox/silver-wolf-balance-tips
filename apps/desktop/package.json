@@ -16,6 +16,7 @@
     "vue": "catalog:"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.144",
     "@tauri-apps/cli": "^2.12.2",
     "@vitejs/plugin-vue": "^6.0.10",
     "typescript": "catalog:",

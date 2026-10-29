@@ -4,7 +4,9 @@
 
 # Silverwolf Balance Tips
 
-Windows 上的轻量 Codex 额度挂件。Rust 查询额度、处理窗口跟随，Tauri + Vue 显示角色和气泡。pnpm monorepo 为后续 DSH / DeepSeek 插件预留包边界。
+Windows 上的可配置桌面角色挂件。支持自定义人物、HTML/CSS/JavaScript 对话框、点击音效、本地文本与图片、一言、自定义语录 API 和 Codex 额度，并可通过本机 HTTP 接收文字或图片推送。
+
+完整设置从托盘或角色旁快捷设置打开。新安装默认在桌面展示本地内容，无需 Codex；升级保留原有额度与跟随配置。使用方法、HTTP 接口和主题开发见 [通用挂件指南](docs/framework.md)，可直接导入的主题见 [纸笺示例](examples/paper-theme)。下文的 Codex 说明仅适用于选用额度内容源时。
 
 ## 已实现的源码功能
 
@@ -16,8 +18,10 @@ Windows 上的轻量 Codex 额度挂件。Rust 查询额度、处理窗口跟随
 - Windows 窗口跟随：位置变化事件触发更新，密集通知按 16ms 合并并读取最新坐标；静止时每秒兜底检查，前台切换、最小化、恢复及拖动结束即时响应。隐藏时跳过定位计算，恢复时先定位再显示；设置和挂件拖动结束会主动唤醒跟随线程。
 - 跟随模式不设为全局置顶；通过原生窗口区域裁剪，角色 / 气泡以外的区域不阻挡点击。
 - 托盘菜单可切换跟随 / 桌面模式、重置位置大小、退出；单实例。
-- 本地保存设置和位置，不持久化额度、账户身份或凭据。
-- 设置使用紧凑浮层；额度提示默认 1 秒后收起，可选 3 秒、常驻或自定义 1–3600 秒。鼠标停留、键盘操作及设置打开期间暂停计时。
+- 本地保存设置、导入素材和位置，不持久化额度或账户身份；自定义 API 请求头及本机推送令牌仅存于宿主配置目录。
+- 快捷设置与独立四页设置窗口；新用户内容默认 8 秒收起，升级保留原时长，可选常驻或自定义 1–3600 秒。鼠标停留、键盘操作及设置打开期间暂停计时。
+- 自定义图片、点击音效、隔离 HTML/CSS/JavaScript 主题；内置本地文本、一言、通用 GET API 和可选 Codex 额度源。
+- 本机 Bearer HTTP 接口上传图片、提交消息、查询状态；Rust 持有 FIFO 队列，插播结束后恢复日常内容。
 - 刷新时保留已有额度，仅在底部显示「更新中」；成功后替换数据，失败或切换连接时清除旧数据。组件规范见 [设计规范](docs/component-guidelines.md)。
 
 当前阶段：Windows 离线编译、Rust / Node 测试、前端类型检查和 Clippy 已运行。挂件已在本机读取真实额度，点击和缩放已实测；用户手动检查拖动和宿主窗口跟随反馈未见异常。混合 DPI 与多显示器等场景尚未全部验收，详见验收记录。
@@ -32,7 +36,7 @@ Windows 上的轻量 Codex 额度挂件。Rust 查询额度、处理窗口跟随
 2. Rust stable，目标 `x86_64-pc-windows-msvc`，建议包含 rustfmt 和 clippy。
 3. Visual Studio 2022 Build Tools 的“使用 C++ 的桌面开发”：MSVC v143 和 Windows 10/11 SDK。
 4. Microsoft Edge WebView2 Runtime（很多 Windows 系统已安装）。
-5. Codex 桌面端或 CLI，并使用 ChatGPT 账户登录。API Key 登录不提供这里的订阅额度。
+5. 仅额度内容源需要 Codex CLI 和 ChatGPT 账户登录；仅跟随模式需要 Codex 桌面端。API Key 登录不提供这里的订阅额度。
 
 在根目录手动执行（这些命令会下载依赖）：
 
@@ -65,7 +69,7 @@ cargo build --release -p silverwolf-desktop --features tauri/custom-protocol --o
 
 产物为 `target/release/silverwolf-desktop.exe`，前端资源内嵌，无需另开 Vite。此命令不会下载缺失的 Cargo 依赖；缺少缓存时会报错。
 
-默认跟随 Codex：若没有打开 Codex 窗口，角色会隐藏，托盘图标仍在。托盘选择“显示在桌面”即可找到它；重复启动应用也会临时显示在桌面。默认不添加开机自启、自动更新或外部守护服务。
+新安装默认桌面模式，旧用户保留跟随选择。跟随模式下若没有可见的 Codex 窗口，角色隐藏，推送等待；托盘选择“显示在桌面”即可找到它。默认不添加开机自启、自动更新或外部守护服务。
 
 ## Codex CLI 发现
 
@@ -81,7 +85,7 @@ cargo build --release -p silverwolf-desktop --features tauri/custom-protocol --o
 
 Rust 启动 `codex app-server`，通过 stdio JSONL 完成 `initialize` / `initialized` 后，仅请求 `account/read` 和 `account/rateLimits/read`。不创建聊天、不调用模型、不直接读取 `auth.json`。返回错误会脱敏，查询限时 20 秒，完成后回收子进程。
 
-设置位于 Tauri 的用户配置目录（Windows 通常为 `%APPDATA%/dev.silverwolf.balance/settings.json`）。角色素材、JS 与字体均来自本地，无远程资源。
+设置位于 Tauri 的用户配置目录（Windows 通常为 `%APPDATA%/dev.silverwolf.balance/settings.json`）。主题和人物素材导入后保存在应用数据目录；网络内容和远程图片由 Rust 获取，模板自身不联网。
 
 ## 包结构
 

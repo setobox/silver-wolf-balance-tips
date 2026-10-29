@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "纸笺 · 示例主题",
+  "character": null,
+  "dialog": "dialog.html",
+  "sound": null,
+  "layout": {
+    "width": 376,
+    "height": 430,
+    "character": { "x": 82, "y": 186, "width": 238, "height": 244 },
+    "bubble": { "x": 12, "y": 18, "width": 284, "height": 254 },
+    "actions": { "x": 328, "leftX": 42, "y": 282 }
+  }
+}

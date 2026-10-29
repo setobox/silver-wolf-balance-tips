@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "Local widget only; no shell, filesystem, HTTP, or remote-page permissions.",
+  "description": "Trusted bundled widget only; theme frames have no native permissions.",
   "windows": ["main"],
-  "permissions": ["core:event:default"]
+  "permissions": ["core:event:default", "allow-get-preferences", "allow-get-host-status", "allow-set-preferences", "allow-read-usage", "allow-ready", "allow-begin-drag", "allow-set-hit-regions", "allow-get-theme", "allow-read-source", "allow-cancel-source", "allow-get-queue", "allow-mark-showing", "allow-finish-message", "allow-open-settings"]
 }

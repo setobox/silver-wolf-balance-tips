@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { it } from 'node:test'
-import { bounce, motionRegion, stageSize, staticRegion } from './widgetGeometry.ts'
+import { bounce, motionFrames, motionRegion, stageSize, staticRegion } from './widgetGeometry.ts'
 
 it('keeps cloud, character and either toolbar side inside the native region throughout scaled motion', () => {
   for (const scale of [0.6, 0.8, 1, 1.6]) {
@@ -40,5 +40,21 @@ it('keeps the static settings panel and shadow inside the stage at all supported
     assert.ok(region.y + region.height <= origin.y + stageSize.height * scale)
     assert.ok(region.width >= rect.width * scale)
     assert.ok(region.height >= rect.height * scale)
+  }
+})
+
+it('limits animation expansion for custom themes touching a canvas edge', () => {
+  const layout = { ...stageSize, width: 600, height: 800, bubble: { x: 0, y: 0, width: 600, height: 300 } }
+  for (const frame of motionFrames(layout)) {
+    for (const rect of [layout.bubble, layout.character]) {
+      for (const x of [rect.x, rect.x + rect.width]) {
+        const animated = layout.width / 2 + (x - layout.width / 2) * frame.x
+        assert.ok(animated >= 0 && animated <= layout.width)
+      }
+      for (const y of [rect.y, rect.y + rect.height]) {
+        const animated = layout.height + (y - layout.height) * frame.y
+        assert.ok(animated >= 0 && animated <= layout.height)
+      }
+    }
   }
 })

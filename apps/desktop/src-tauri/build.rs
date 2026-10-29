@@ -1,5 +1,29 @@
 fn main() {
     println!("cargo:rerun-if-changed=icons/icon.ico");
     println!("cargo:rerun-if-changed=icons/icon.png");
-    tauri_build::build()
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
+        tauri_build::AppManifest::new().commands(&[
+            "get_preferences",
+            "get_host_status",
+            "set_preferences",
+            "read_usage",
+            "ready",
+            "begin_drag",
+            "set_hit_regions",
+            "get_theme",
+            "import_asset",
+            "import_theme",
+            "read_source",
+            "cancel_source",
+            "get_queue",
+            "mark_showing",
+            "finish_message",
+            "clear_queue",
+            "get_server_status",
+            "get_http_token",
+            "open_settings",
+            "set_settings_activity",
+        ]),
+    ))
+    .expect("build application permissions")
 }

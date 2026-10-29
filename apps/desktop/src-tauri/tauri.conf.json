@@ -27,8 +27,9 @@
       "dragDropEnabled": false
     }],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src 'none'; base-uri 'self'",
-      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420; object-src 'none'; frame-src 'none'"
+      "capabilities": ["main", "settings"],
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://media.localhost http://127.0.0.1:*; media-src 'self' blob: http://media.localhost http://127.0.0.1:*; connect-src ipc: http://ipc.localhost; object-src 'none'; frame-src http://127.0.0.1:*; base-uri 'self'",
+      "devCsp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://media.localhost http://127.0.0.1:*; media-src 'self' blob: http://media.localhost http://127.0.0.1:*; connect-src ipc: http://ipc.localhost http://127.0.0.1:1420 ws://127.0.0.1:1420; object-src 'none'; frame-src http://127.0.0.1:*; base-uri 'self'"
     }
   },
   "bundle": {

@@ -1,24 +1,40 @@
 <script setup lang="ts">
+import type { LayoutRect } from '@silverwolf/core'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { Preferences } from '../types'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { computed, nextTick, onMounted, onUnmounted, shallowRef, useTemplateRef, watch } from 'vue'
-import { defaultPreferences, desktop, native } from '../bridge'
-import { useQuotaDismiss } from '../composables/useQuotaDismiss'
-import { useUsage } from '../composables/useUsage'
+import { builtinTheme, defaultPreferences, desktop, native } from '../bridge'
+import { useContentDismiss } from '../composables/useContentDismiss'
+import { useContentSource } from '../composables/useContentSource'
+import { usePushQueue } from '../composables/usePushQueue'
 import { useWidgetMotion } from '../composables/useWidgetMotion'
-import { motionRegion, stageSize, staticRegion } from '../widgetGeometry'
-import QuotaBubble from './QuotaBubble.vue'
+import { motionRegion, staticRegion } from '../widgetGeometry'
+import DialogSurface from './content/DialogSurface.vue'
 import SettingsPopover from './SettingsPopover.vue'
 import WidgetActions from './WidgetActions.vue'
 import WidgetSettings from './WidgetSettings.vue'
 import WolfCharacter from './WolfCharacter.vue'
 
-const { snapshot, error, loading, now, refresh, reconnect } = useUsage()
 const expanded = shallowRef(false)
-const preferences = shallowRef<Preferences>({ ...defaultPreferences })
 const settingsOpen = shallowRef(false)
+const preferences = shallowRef<Preferences>(structuredClone(defaultPreferences))
+const theme = shallowRef(builtinTheme)
+const initialized = shallowRef(false)
+const visible = shallowRef(false)
+const fullSettingsOpen = shallowRef(false)
+const rendererReady = shallowRef(false)
+const templateInteraction = shallowRef(false)
+const now = shallowRef(Date.now())
+const source = useContentSource(preferences, initialized, visible)
+const { refresh } = source
+const eligible = computed(() => initialized.value && visible.value && !fullSettingsOpen.value && !settingsOpen.value)
+const pushes = usePushQueue(expanded, eligible)
+const content = computed(() => pushes.active.value?.content ?? source.content.value)
+const loading = computed(() => pushes.active.value ? pushes.active.value.status === 'preparing' : source.loading.value)
+const error = computed(() => pushes.active.value ? '' : source.error.value)
+const stageSize = computed(() => theme.value.layout)
 const uiError = shallowRef('')
 const saving = shallowRef(false)
 const bubble = useTemplateRef<HTMLElement>('bubble')
@@ -29,27 +45,61 @@ const actions = useTemplateRef<HTMLElement>('actions')
 const settingsRegion = useTemplateRef<HTMLElement>('settingsRegion')
 const restoreFocus = shallowRef<HTMLElement | null>(null)
 const toolbarLeft = shallowRef(false)
-const { press, rebound } = useWidgetMotion(motion)
+const { press, rebound } = useWidgetMotion(motion, () => theme.value.layout)
 const transform = computed(() => ({ transform: `scale(${preferences.value.scale})` }))
 let observer: ResizeObserver | undefined
 let unlisten: UnlistenFn | undefined
 let resizeUnlisten: UnlistenFn | undefined
 let sideUnlisten: UnlistenFn | undefined
+let activityUnlisten: UnlistenFn | undefined
+let statusTimer: ReturnType<typeof setInterval> | undefined
+let audio: HTMLAudioElement | undefined
+let themeGeneration = 0
 let disposed = false
 let suppressClick = false
 let pointerCleanup: (() => void) | undefined
 let frame = 0
-
-const { syncHover, restart } = useQuotaDismiss({
+const { syncHover, restart } = useContentDismiss({
   expanded,
-  seconds: () => preferences.value.quotaDismissSeconds,
+  seconds: () => pushes.active.value?.durationSeconds ?? preferences.value.dismissSeconds,
   loading,
   settingsOpen,
   bubble,
   actions,
-  dismiss: () => { expanded.value = false },
+  paused: () => !visible.value || !rendererReady.value || templateInteraction.value || fullSettingsOpen.value,
+  dismiss: collapse,
 })
-
+function rectStyle(rect: LayoutRect): Record<string, string> {
+  return { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` }
+}
+watch(() => JSON.stringify(preferences.value.appearance), async () => {
+  const generation = ++themeGeneration
+  const next = await desktop.theme(preferences.value.appearance)
+  if (generation === themeGeneration && !disposed) {
+    theme.value = next
+    scheduleRegions()
+  }
+}, { immediate: true })
+watch(() => content.value?.id, () => {
+  restart()
+}, { flush: 'post' })
+watch([() => pushes.active.value?.id, eligible, rendererReady, loading], () => {
+  const message = pushes.active.value
+  if (message && eligible.value && rendererReady.value && !loading.value) {
+    void desktop.showing(message.id).catch(() => {
+    })
+  }
+})
+async function mediaError(): Promise<void> {
+  if (pushes.active.value)
+    await pushes.finish('图片加载失败')
+  else
+    uiError.value = '图片加载失败，请检查素材或重新获取内容。'
+}
+function previewChanged(event: StorageEvent): void {
+  if (event.key === 'silverwolf-preview')
+    void desktop.preferences().then(value => preferences.value = value)
+}
 watch([expanded, settingsOpen], scheduleRegions, { flush: 'post' })
 watch(settingsRegion, (element, previous) => {
   if (previous)
@@ -58,7 +108,6 @@ watch(settingsRegion, (element, previous) => {
     observer?.observe(element)
   scheduleRegions()
 }, { flush: 'post' })
-
 async function updateRegions(): Promise<void> {
   await nextTick()
   if (!stage.value)
@@ -67,7 +116,7 @@ async function updateRegions(): Promise<void> {
   const elements = [character.value, actions.value, expanded.value ? bubble.value : null]
   try {
     const regions = elements.filter((element): element is HTMLElement => !!element).map((element) => {
-      return motionRegion({ x: element.offsetLeft, y: element.offsetTop, width: element.offsetWidth, height: element.offsetHeight }, preferences.value.scale, origin)
+      return motionRegion({ x: element.offsetLeft, y: element.offsetTop, width: element.offsetWidth, height: element.offsetHeight }, preferences.value.scale, origin, stageSize.value)
     })
     if (settingsOpen.value && settingsRegion.value) {
       const element = settingsRegion.value
@@ -75,23 +124,25 @@ async function updateRegions(): Promise<void> {
     }
     await desktop.regions(regions)
   }
-  catch { uiError.value = '窗口交互区域更新失败，请从托盘退出后重开。' }
+  catch {
+    uiError.value = '窗口交互区域更新失败，请从托盘退出后重开。'
+  }
 }
-
 function scheduleRegions(): void {
   cancelAnimationFrame(frame)
   frame = requestAnimationFrame(() => {
     void updateRegions()
   })
 }
-
 function collapse(): void {
   if (settingsOpen.value)
     return
-  expanded.value = false
+  if (pushes.active.value)
+    void pushes.finish()
+  else
+    expanded.value = false
   scheduleRegions()
 }
-
 function showPanel(settings: boolean): void {
   if (settings && !settingsOpen.value)
     restoreFocus.value = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -100,7 +151,6 @@ function showPanel(settings: boolean): void {
   restart()
   scheduleRegions()
 }
-
 async function save(patch: Partial<Preferences>): Promise<void> {
   if (saving.value)
     return
@@ -109,13 +159,14 @@ async function save(patch: Partial<Preferences>): Promise<void> {
   try {
     preferences.value = await desktop.save({ ...preferences.value, ...patch })
     scheduleRegions()
-    if ('codexPath' in patch)
-      reconnect()
   }
-  catch { uiError.value = '设置保存失败，请检查配置目录或 CLI 路径。' }
-  finally { saving.value = false }
+  catch {
+    uiError.value = '设置保存失败，请检查配置目录或 CLI 路径。'
+  }
+  finally {
+    saving.value = false
+  }
 }
-
 function characterClick(event: MouseEvent): void {
   if (suppressClick) {
     suppressClick = false
@@ -125,13 +176,21 @@ function characterClick(event: MouseEvent): void {
     return
   if (event.detail === 0)
     rebound()
+  if (!preferences.value.appearance.muted && theme.value.sound) {
+    audio?.pause()
+    audio = new Audio(theme.value.sound)
+    audio.volume = preferences.value.appearance.volume
+    void audio.play().catch(() => {
+      uiError.value = '音效播放失败，请更换音频文件。'
+    })
+  }
+  if (!pushes.active.value && preferences.value.content.provider !== 'codex')
+    void refresh()
   showPanel(false)
 }
-
 function scaleBy(delta: number): void {
   void save({ scale: Math.min(1.6, Math.max(0.6, Math.round((preferences.value.scale + delta) * 10) / 10)) })
 }
-
 function pointerDown(event: PointerEvent): void {
   if (event.button !== 0)
     return
@@ -155,7 +214,9 @@ function pointerDown(event: PointerEvent): void {
     try {
       await desktop.beginDrag()
     }
-    catch { uiError.value = '暂时无法拖动窗口。' }
+    catch {
+      uiError.value = '暂时无法拖动窗口。'
+    }
   }
   window.addEventListener('pointermove', move)
   window.addEventListener('pointerup', clear, { once: true })
@@ -163,10 +224,11 @@ function pointerDown(event: PointerEvent): void {
   window.addEventListener('blur', clear, { once: true })
   pointerCleanup = clear
 }
-
 onMounted(async () => {
   try {
     preferences.value = await desktop.preferences()
+    theme.value = await desktop.theme()
+    initialized.value = true
     observer = new ResizeObserver(scheduleRegions)
     if (bubble.value)
       observer.observe(bubble.value)
@@ -184,19 +246,41 @@ onMounted(async () => {
         toolbarLeft.value = event.payload
         scheduleRegions()
       })
+      activityUnlisten = await listen<boolean>('settings-activity', event => fullSettingsOpen.value = event.payload)
       toolbarLeft.value = (await desktop.status()).toolbarLeft
     }
+    else {
+      window.addEventListener('storage', previewChanged)
+    }
+    statusTimer = setInterval(async () => {
+      now.value = Date.now()
+      try {
+        const status = await desktop.status()
+        if (!disposed) {
+          visible.value = status.visible
+          toolbarLeft.value = status.toolbarLeft
+          fullSettingsOpen.value = status.settingsOpen
+        }
+      }
+      catch {
+      }
+    }, 200)
     if (disposed) {
       unlisten?.()
       resizeUnlisten?.()
       sideUnlisten?.()
+      activityUnlisten?.()
+      clearInterval(statusTimer)
       observer?.disconnect()
       return
     }
     await updateRegions()
     await desktop.ready()
+    visible.value = (await desktop.status()).visible
   }
-  catch { uiError.value = '初始化失败，请重开挂件。' }
+  catch {
+    uiError.value = '初始化失败，请重开挂件。'
+  }
 })
 onUnmounted(() => {
   disposed = true
@@ -204,6 +288,10 @@ onUnmounted(() => {
   unlisten?.()
   resizeUnlisten?.()
   sideUnlisten?.()
+  activityUnlisten?.()
+  clearInterval(statusTimer)
+  window.removeEventListener('storage', previewChanged)
+  audio?.pause()
   pointerCleanup?.()
   cancelAnimationFrame(frame)
 })
@@ -212,36 +300,14 @@ onUnmounted(() => {
 <template>
   <main ref="stage" class="stage" :style="{ ...transform, width: `${stageSize.width}px`, height: `${stageSize.height}px` }" @contextmenu.prevent>
     <div ref="motion" class="widget-motion" :inert="settingsOpen">
-      <div v-show="expanded" ref="bubble" class="thought" @pointerenter="syncHover" @pointerleave="syncHover">
-        <svg class="thought-outline" viewBox="0 0 300 230" preserveAspectRatio="none" aria-hidden="true">
-          <path d="M48 32C58 10 89 6 110 19 132 5 169 7 187 24 215 12 246 25 254 46 280 48 298 71 291 95 304 118 293 146 275 155 275 182 248 202 223 198 205 220 173 218 156 207 132 226 100 217 90 202 61 211 37 193 33 173 9 165 1 143 12 121 1 97 9 71 31 64 27 47 33 38 48 32Z" />
-        </svg>
-        <div class="thought-content">
-          <header class="thought-header">
-            <h1>剩余额度</h1>
-          </header>
-          <div class="thought-scroll">
-            <QuotaBubble :snapshot="snapshot" :error="error" :loading="loading" :now="now" />
-            <p v-if="uiError" role="alert" class="ui-error">
-              {{ uiError }}
-            </p>
-          </div>
-          <p class="caption" role="status">
-            <span v-if="snapshot" class="update-time">
-              {{ new Date(snapshot.observedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }} 更新
-            </span>
-            <span v-else>{{ native ? '尚未更新' : '浏览器预览' }}</span>
-            <span v-if="loading" class="loading-status"><span class="loading-spinner" aria-hidden="true" />更新中</span>
-          </p>
-        </div>
-        <span class="thought-dot large" aria-hidden="true" />
-        <span class="thought-dot small" aria-hidden="true" />
+      <div v-show="expanded" ref="bubble" class="thought" :style="rectStyle(theme.layout.bubble)" @pointerenter="syncHover" @pointerleave="syncHover">
+        <DialogSurface :theme="theme" :content="content" :expanded="expanded" :loading="loading" :error="error || uiError" :now="now" @ready="rendererReady = $event" @media-error="mediaError" @interaction="templateInteraction = $event" @refresh="refresh" @close="collapse" />
       </div>
-      <div ref="character" class="character-position">
-        <WolfCharacter :expanded="expanded" @toggle="characterClick" @pointerdown="pointerDown" @wheel="scaleBy($event.deltaY < 0 ? 0.1 : -0.1)" />
+      <div ref="character" class="character-position" :style="rectStyle(theme.layout.character)">
+        <WolfCharacter :image="theme.character" :expanded="expanded" @toggle="characterClick" @pointerdown="pointerDown" @wheel="scaleBy($event.deltaY < 0 ? 0.1 : -0.1)" />
       </div>
-      <div ref="actions" class="actions-position" :class="{ 'is-left': toolbarLeft }" @pointerenter="syncHover" @pointerleave="syncHover">
-        <WidgetActions :expanded="expanded" :settings-open="settingsOpen" :loading="loading" @toggle="collapse" @refresh="refresh" @settings="showPanel(true)" @back="showPanel(false)" />
+      <div ref="actions" class="actions-position" :style="{ left: `${toolbarLeft ? theme.layout.actions.leftX : theme.layout.actions.x}px`, top: `${theme.layout.actions.y}px` }" :class="{ 'is-left': toolbarLeft }" @pointerenter="syncHover" @pointerleave="syncHover">
+        <WidgetActions :expanded="expanded" :settings-open="settingsOpen" :loading="loading" @toggle="collapse" @refresh="refresh" @settings="showPanel(true)" />
       </div>
     </div>
     <div v-if="settingsOpen" ref="settingsRegion" class="settings-position">
